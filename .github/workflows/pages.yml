@@ -32,7 +32,10 @@ jobs:
           cp index.html app.js styles.css tool-storage.js cover.png account-config.json .nojekyll _site/
       - uses: actions/upload-pages-artifact@v3
         with:
+          name: github-pages-${{ github.run_attempt }}
           path: _site
       - uses: actions/configure-pages@v5
       - id: deploy
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
