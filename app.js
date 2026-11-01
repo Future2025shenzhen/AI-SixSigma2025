@@ -103,9 +103,23 @@ $('audit-users').onclick=async event=>{
  try{await api('/api/admin/control',{method:'POST',body:JSON.stringify({user_id:user.id,action:button.dataset.control})});await loadAudit(auditData.page);}catch(error){$('audit-message').textContent=error.message;}finally{button.disabled=false;}
 };
 
-function showRegistration(){$('login-dialog').close();$('registration-message').textContent='';$('registration-dialog').showModal();}
+function showRegistration(){$('login-dialog').close();$('registration-message').textContent='';$('registration-dialog').showModal();if($('application-receipt').value)checkApplication();}
 $('register-trigger').onclick=showRegistration;$('register-from-login').onclick=showRegistration;
 $('registration-to-login').onclick=()=>{$('registration-dialog').close();$('login-dialog').showModal();};
+try{$('application-receipt').value=localStorage.getItem('sixsigma-application-receipt')||'';}catch{}
+let checkingApplication=false;
+async function checkApplication(){
+ if(checkingApplication||!config?.configured)return;checkingApplication=true;$('check-application').disabled=true;
+ try{
+  const receipt=$('application-receipt').value.trim();if(!receipt)throw Error('请填写提交申请时获得的查询凭证');
+  const response=await fetch((config.apiBase||'')+'/api/registration/status',{method:'POST',headers:{'Content-Type':'application/json',...(config.apiBase?{apikey:config.key}:{})},body:JSON.stringify({receipt})});
+  const result=await response.json();if(!response.ok)throw Error(result.error||'查询失败，请稍后重试');
+  try{localStorage.setItem('sixsigma-application-receipt',receipt);}catch{}
+  $('application-status-message').textContent=result.status==='approved'?'已通过审批！请点击“返回登录”，使用申请时的邮箱和密码登录。实际工具和期限以管理员授权为准。':result.status==='rejected'?'申请未通过，请联系管理员。':'申请已提交，等待管理员审批。';
+ }catch(error){$('application-status-message').textContent=error.message;}finally{checkingApplication=false;$('check-application').disabled=false;}
+}
+$('check-application').onclick=checkApplication;
+setInterval(()=>{if($('registration-dialog').open&&$('application-receipt').value&&document.visibilityState==='visible')checkApplication();},30000);
 $('registration-form').onsubmit=async event=>{
  event.preventDefault();const button=event.submitter;button.disabled=true;$('registration-message').textContent='';
  try{
@@ -113,7 +127,7 @@ $('registration-form').onsubmit=async event=>{
   if($('registration-password').value!==$('registration-confirm').value)throw Error('两次输入的密码不一致');
   const response=await fetch((config?.apiBase||'')+'/api/registration',{method:'POST',headers:{'Content-Type':'application/json',...(config?.apiBase?{apikey:config.key}:{})},body:JSON.stringify({email:$('registration-email').value.trim(),password:$('registration-password').value,company_name:$('registration-company').value.trim()})});
   const result=await response.json();if(!response.ok)throw Error(result.error||'申请提交失败，请稍后重试');
-  $('registration-password').value='';$('registration-confirm').value='';$('email').value=$('registration-email').value.trim();$('registration-message').textContent=result.message;
+  $('registration-password').value='';$('registration-confirm').value='';$('email').value=$('registration-email').value.trim();$('registration-message').textContent=result.message;if(result.receipt){$('application-receipt').value=result.receipt;try{localStorage.setItem('sixsigma-application-receipt',result.receipt);}catch{}await checkApplication();}
  }catch(error){$('registration-message').textContent=error.message;}finally{button.disabled=false;}
 };
 let applicationsData=null;
